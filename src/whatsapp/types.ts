@@ -3,6 +3,7 @@ export interface WhatsAppWebhookPayload {
     changes: Array<{
       value: {
         messages?: Array<{
+          [x: string]: any;
           from: string;
           id: string;
           type: string;
