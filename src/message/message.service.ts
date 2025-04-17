@@ -8,6 +8,7 @@ import {
 } from './constants/cloud-api';
 import { QuestionsService } from '../questions/questions.service';
 import { UserService } from '../user/user.service';
+import { Question } from 'src/questions/interfaces/question.interface';
 
 interface ApiResponse {
   messages: Array<{
@@ -119,12 +120,25 @@ export class MessageService {
     return this.sendRequest(data);
   }
 
-  async sendNext(
-    recipient: string,
-    message: { question: string; options: string[] },
-  ): Promise<string> {
+  async sendVoiceNote(recipient: string, audioUrl: string): Promise<string> {
+    const data = {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to: recipient,
+      type: 'audio',
+      audio: {
+        link: audioUrl,
+      },
+    };
+
+    return await this.sendRequest(data);
+  }
+
+  async sendNext(recipient: string, message: Question): Promise<string> {
     const userSession = this.userService.getSession(recipient);
     const totalQuestions = this.questionsService.findAll().length;
+    let { question } = message;
+    const { options, type } = message;
 
     if (
       this.userService.hasCompletedAllQuestions(
@@ -132,18 +146,21 @@ export class MessageService {
         totalQuestions,
       )
     ) {
-      await this.sendText(
+      return this.sendText(
         recipient,
         'Congratulations! 🎉 You have completed the lesson.',
       );
-      return Promise.resolve('Lesson completed');
     }
 
-    if (message.options && message.options.length > 0) {
-      return this.sendWithOptions(recipient, message.question, message.options);
+    if (options && options.length > 0) {
+      if (type === 'what-do-you-hear') {
+        await this.sendVoiceNote(recipient, question);
+        question = 'Ni iki wumva?';
+      }
+      return this.sendWithOptions(recipient, question, options);
     }
 
-    return Promise.resolve('Loading questions...');
+    return this.sendText(recipient, question);
   }
 
   async sendFeedback(
