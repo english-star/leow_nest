@@ -1,14 +1,14 @@
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { WhatsappController } from './whatsapp/whatsapp.controller';
 import { ConfigModule } from '@nestjs/config';
-import { WhatsappModule } from './whatsapp/whatsapp.module';
-import { WhatsappService } from './whatsapp/whatsapp.service';
+import { MessageModule } from './message/message.module';
+import { QuestionsModule } from './questions/questions.module';
+import { UserModule } from './user/user.module';
 
 @Module({
-  imports: [ConfigModule.forRoot(), WhatsappModule],
-  controllers: [AppController, WhatsappController],
-  providers: [AppService, WhatsappService],
+  imports: [ConfigModule.forRoot(), MessageModule, QuestionsModule, UserModule],
+  controllers: [AppController],
+  providers: [AppService],
 })
 export class AppModule {}
