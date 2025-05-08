@@ -1,4 +1,4 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Controller, Get, Post, Param, Body } from '@nestjs/common';
 import { QuestionsService } from './questions.service';
 import { Question } from './interfaces/question.interface';
 
@@ -14,5 +14,14 @@ export class QuestionsController {
   @Get(':id')
   findById(@Param('id') id: string): Question | undefined {
     return this.questionsService.findById(+id);
+  }
+
+  @Post(':id/answer')
+  async checkAnswer(
+    @Param('id') id: string,
+    @Body('answer') answer: string,
+    @Body('messageSender') messageSender: string,
+  ): Promise<{ message: string; media: string; nextQuestion?: Question }> {
+    return this.questionsService.checkAnswer(+id, answer, messageSender);
   }
 }

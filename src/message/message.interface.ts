@@ -1,3 +1,10 @@
+export interface ApiResponse {
+  messages: Array<{
+    id: string;
+    message_status: string;
+  }>;
+}
+
 export interface WebhookPayload {
   entry: Array<{
     changes: Array<{
@@ -17,12 +24,18 @@ export interface WebhookPayload {
 }
 
 export interface MessageResponse {
-  messaging_product: 'whatsapp';
-  recipient_type: 'individual';
+  messaging_product: string;
+  recipient_type: string;
   to: string;
-  type: 'text';
-  text: {
+  type: string;
+  text?: {
     body: string;
+  };
+  audio?: {
+    link: string;
+  };
+  video?: {
+    link: string;
   };
 }
 
@@ -34,4 +47,9 @@ export interface InteractiveMessageResponse {
   text?: {
     body: string;
   };
+}
+
+export enum MediaType {
+  Video = 'video',
+  Audio = 'audio',
 }

@@ -4,9 +4,15 @@ import { MessageController } from './message.controller';
 import { MessageService } from './message.service';
 import { QuestionsModule } from '../questions/questions.module';
 import { UserModule } from '../user/user.module';
+import { AudioModule } from 'src/audio/audio.module';
 
 @Module({
-  imports: [HttpModule, forwardRef(() => QuestionsModule), UserModule],
+  imports: [
+    HttpModule,
+    forwardRef(() => QuestionsModule),
+    UserModule,
+    AudioModule,
+  ],
   controllers: [MessageController],
   providers: [MessageService],
   exports: [MessageService],

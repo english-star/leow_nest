@@ -1,28 +1,23 @@
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { catchError, lastValueFrom, map } from 'rxjs';
-import { InteractiveMessageResponse, MessageResponse } from './types';
+import {
+  InteractiveMessageResponse,
+  MediaType,
+  MessageResponse,
+} from './message.interface';
 import {
   WHATSAPP_CLOUD_API_ACCESS_TOKEN,
   WHATSAPP_CLOUD_API_MESSAGES_URL,
 } from './constants/cloud-api';
-import { QuestionsService } from '../questions/questions.service';
 import { UserService } from '../user/user.service';
 import { Question } from '../questions/interfaces/question.interface';
-
-interface ApiResponse {
-  messages: Array<{
-    id: string;
-    message_status: string;
-  }>;
-}
+import DefaultMessages from '../data/default-messages.json';
+import { ApiResponse } from './message.interface';
 
 @Injectable()
 export class MessageService {
-  constructor(
-    private readonly userService: UserService,
-    private readonly questionsService: QuestionsService,
-  ) {}
+  constructor(private readonly userService: UserService) {}
 
   private readonly httpService = new HttpService();
   private readonly logger = new Logger(MessageService.name);
@@ -69,26 +64,28 @@ export class MessageService {
     return this.sendRequest(data);
   }
 
-  async sendMedia(recipient: string, mediaUrl: string): Promise<string> {
-    const mediaData = {
+  async sendMedia(
+    recipient: string,
+    type: string,
+    link: string,
+  ): Promise<string> {
+    const mediaData: MessageResponse = {
       messaging_product: 'whatsapp',
       recipient_type: 'individual',
       to: recipient,
-      type: 'video',
-      video: {
-        link: mediaUrl,
-      },
+      type,
     };
+
+    if (type === 'audio') mediaData.audio = { link };
+    if (type === 'video') mediaData.video = { link };
 
     return this.sendRequest(mediaData);
   }
 
-  async sendWithOptions(
-    recipient: string,
-    question: string,
-    options: string[],
-  ): Promise<string> {
-    const buttons = options.map((option, index) => ({
+  async sendWithOptions(recipient: string, message: Question): Promise<string> {
+    const { text, options, audio } = message;
+
+    const buttons = options!.map((option, index) => ({
       type: 'reply',
       reply: {
         id: `option_${index}`,
@@ -104,7 +101,7 @@ export class MessageService {
       interactive: {
         type: 'button',
         body: {
-          text: question,
+          text,
         },
         action: {
           buttons,
@@ -112,50 +109,9 @@ export class MessageService {
       },
     };
 
+    if (audio) await this.sendMedia(recipient, MediaType.Audio, audio);
+
     return this.sendRequest(data);
-  }
-
-  async sendVoiceNote(recipient: string, audioUrl: string): Promise<string> {
-    const data = {
-      messaging_product: 'whatsapp',
-      recipient_type: 'individual',
-      to: recipient,
-      type: 'audio',
-      audio: {
-        link: audioUrl,
-      },
-    };
-
-    return await this.sendRequest(data);
-  }
-
-  async sendNext(recipient: string, message: Question): Promise<string> {
-    const userSession = this.userService.getSession(recipient);
-    const totalQuestions = this.questionsService.findAll().length;
-    let { question } = message;
-    const { options, type } = message;
-
-    if (
-      this.userService.hasCompletedAllQuestions(
-        userSession?.currentQuestionId ?? 1,
-        totalQuestions,
-      )
-    ) {
-      return this.sendText(
-        recipient,
-        'Congratulations! 🎉 You have completed the lesson.',
-      );
-    }
-
-    if (options && options.length > 0) {
-      if (type === 'what-do-you-hear') {
-        await this.sendVoiceNote(recipient, question);
-        question = 'Ni iki wumva?';
-      }
-      return this.sendWithOptions(recipient, question, options);
-    }
-
-    return this.sendText(recipient, question);
   }
 
   async sendFeedback(
@@ -163,7 +119,7 @@ export class MessageService {
     feedback: { message: string; media: string },
   ): Promise<void> {
     await this.sendText(recipient, feedback.message);
-    await this.sendMedia(recipient, feedback.media);
+    await this.sendMedia(recipient, MediaType.Video, feedback.media);
     await new Promise((resolve) => setTimeout(resolve, 1000));
     this.userService.incrementCurrentQuestion(recipient);
   }
@@ -181,10 +137,23 @@ export class MessageService {
     const userSession = this.userService.getSession(messageSender);
 
     if (userSession?.currentQuestionId === 1) {
-      await this.sendText(
-        messageSender,
-        '*Muraho!* 👋\nIkaze kuri *Learn English*! Hano uziga Icyongereza mu buryo bworoshye kandi bushimishije.',
+      await this.sendText(messageSender, DefaultMessages['welcome']);
+    }
+  }
+
+  async getMediaUrl(mediaId: string): Promise<string> {
+    const url = `https://graph.facebook.com/v16.0/${mediaId}?fields=link&access_token=${WHATSAPP_CLOUD_API_ACCESS_TOKEN}`;
+
+    try {
+      const response = await lastValueFrom(
+        this.httpService
+          .get<{ link: string }>(url)
+          .pipe(map((res) => res.data)),
       );
+      return response.link;
+    } catch (error) {
+      this.logger.error('Error fetching media URL:', error);
+      throw new BadRequestException('Error fetching media URL');
     }
   }
 }
