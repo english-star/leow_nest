@@ -5,10 +5,19 @@ import { ConfigModule } from '@nestjs/config';
 import { MessageModule } from './message/message.module';
 import { QuestionsModule } from './questions/questions.module';
 import { UserModule } from './user/user.module';
+import { AudioService } from './audio/audio.service';
+import { AudioController } from './audio/audio.controller';
+import { AudioModule } from './audio/audio.module';
 
 @Module({
-  imports: [ConfigModule.forRoot(), MessageModule, QuestionsModule, UserModule],
-  controllers: [AppController],
-  providers: [AppService],
+  imports: [
+    ConfigModule.forRoot(),
+    MessageModule,
+    QuestionsModule,
+    UserModule,
+    AudioModule,
+  ],
+  controllers: [AppController, AudioController],
+  providers: [AppService, AudioService],
 })
 export class AppModule {}

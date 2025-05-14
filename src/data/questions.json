@@ -154,11 +154,7 @@
     "_id": 22,
     "question_number": 9,
     "question": "Uzuza iki kiganiro:\nUmuntu A: Hi! How are you doing today?\nUmuntu B: I'm good, thanks, How about you?\nUmuntu A: ………..",
-    "options": [
-      "I'm fine, thank you!",
-      "What's your name?",
-      "Let's go to eat."
-    ],
+    "options": ["I'm fine, thank you!", "What's your name?", "Let's go"],
     "answer": "I'm fine, thank you!"
   },
   {

@@ -1,3 +1,5 @@
+import { AudioService } from './../audio/audio.service';
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import {
   Controller,
   Get,
@@ -9,10 +11,11 @@ import {
 } from '@nestjs/common';
 import { Request } from 'express';
 import { MessageService } from './message.service';
-import { WebhookPayload } from './types';
+import { WebhookPayload } from './message.interface';
 import { QuestionsService } from '../questions/questions.service';
 import { UserService } from '../user/user.service';
 import { WHATSAPP_CLOUD_API_ACCESS_TOKEN } from './constants/cloud-api';
+import { QuestionType } from 'src/questions/interfaces/question.interface';
 
 @Controller('message')
 export class MessageController {
@@ -22,6 +25,7 @@ export class MessageController {
     private readonly messageService: MessageService,
     private readonly questionsService: QuestionsService,
     private readonly userService: UserService,
+    private readonly audioService: AudioService,
   ) {}
 
   @Get('webhook')
@@ -50,42 +54,79 @@ export class MessageController {
     const messageSender = message.from;
     const messageId = message.id;
 
+    const { currentQuestionId } = this.userService.getSession(messageSender)!;
+    let userResponse = '';
+
     this.logger.log(`Received message ${messageId} from ${messageSender}`);
 
     switch (message.type) {
       case 'text': {
-        await this.messageService.parseText(messageSender, message);
-        const { currentQuestionId } =
-          this.userService.getSession(messageSender)!;
-        const feedback = this.questionsService.checkAnswer(
-          currentQuestionId,
-          message.text?.body ?? '',
+        const initialMessage = await this.messageService.parseText(
+          messageSender,
+          message,
         );
-
-        await this.messageService.sendFeedback(messageSender, feedback);
+        userResponse = initialMessage ? '' : (message.text?.body ?? '');
         break;
       }
 
       case 'interactive': {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-        const buttonTitle = message.interactive?.button_reply?.title as string;
-        const { currentQuestionId } =
-          this.userService.getSession(messageSender)!;
-        const feedback = this.questionsService.checkAnswer(
-          currentQuestionId,
-          buttonTitle,
-        );
-
-        await this.messageService.sendFeedback(messageSender, feedback);
+        userResponse = message.interactive?.button_reply?.title as string;
         break;
       }
+
+      case 'audio': {
+        this.logger.log(
+          `Received audio message ${messageId} from ${messageSender}`,
+        );
+        try {
+          const mediaId = message.audio?.id as string;
+          if (!mediaId) {
+            this.logger.warn('Audio message does not contain a media ID');
+            break;
+          }
+
+          const mediaUrl = await this.messageService.getMediaUrl(mediaId);
+          if (!mediaUrl) {
+            this.logger.warn(
+              `Failed to retrieve media URL for media ID: ${mediaId}`,
+            );
+            break;
+          }
+
+          userResponse = await this.audioService.transcribe(mediaUrl);
+        } catch (error) {
+          this.logger.error('Error processing audio message', error);
+        }
+        break;
+      }
+
       default:
         this.logger.warn(`Unhandled message type: ${message.type}`);
     }
 
-    const { currentQuestionId } = this.userService.getSession(messageSender)!;
-    const nextQuestion = this.questionsService.findById(currentQuestionId);
+    if (userResponse) {
+      const feedback = this.questionsService.checkAnswer(
+        currentQuestionId,
+        userResponse,
+        messageSender,
+      );
 
-    return this.messageService.sendNext(messageSender, nextQuestion);
+      await this.messageService.sendFeedback(messageSender, feedback);
+    }
+
+    const nextQuestion = this.questionsService.getNext(messageSender);
+
+    if (typeof nextQuestion === 'string') {
+      return this.messageService.sendText(messageSender, nextQuestion);
+    }
+
+    switch (nextQuestion.type) {
+      case QuestionType.MultipleChoice:
+        return this.messageService.sendWithOptions(messageSender, nextQuestion);
+      case QuestionType.Writing:
+        return this.messageService.sendText(messageSender, nextQuestion.text);
+      default:
+        return Promise.resolve('Unhandled type');
+    }
   }
 }

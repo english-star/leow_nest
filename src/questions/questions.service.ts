@@ -1,13 +1,19 @@
 import { Injectable } from '@nestjs/common';
-import { Question } from './interfaces/question.interface';
-import questions from '../data/questions.json';
+import { Question, QuestionType } from './interfaces/question.interface';
+import questions from '../data/mvp-lesson';
+import DefaultMessages from '../data/default-messages.json';
+import { UserService } from '../user/user.service';
+import { MessageService } from '../message/message.service';
 
 @Injectable()
 export class QuestionsService {
   private list: Question[];
 
-  constructor() {
-    this.list = questions as Question[];
+  constructor(
+    private readonly userService: UserService,
+    private readonly messageService: MessageService,
+  ) {
+    this.list = questions;
   }
 
   findAll(): Question[] {
@@ -22,31 +28,87 @@ export class QuestionsService {
     return question;
   }
 
-  checkAnswer(
-    questionId: number,
-    answer: string,
-  ): { message: string; media: string } {
-    const question = this.findById(questionId);
-    const correctAnswer = question.answer;
-
-    const feedback = {
+  private getFeedback(correctAnswer: string) {
+    return {
       correct: {
-        message: 'Byiza cyane! 🎉 Igisubizo cyawe ni cyo!',
+        message: DefaultMessages['status.answer.correct'],
         media: 'https://leow.netlify.app/Great%20Job%20Gif.mp4',
       },
       incorrect: {
-        message: `Yiii! 😞 Igisubizo cyawe Ntabwo ari cyo.\n\nIgisubizo ni: ${correctAnswer}`,
+        message: `${DefaultMessages['status.answer.incorrect']} ${correctAnswer}`,
         media: 'https://leow.netlify.app/That_s_not_right.mp4',
       },
     };
+  }
 
-    if (question.type === 'write-in-english') {
-      if (correctAnswer.toLowerCase().includes(answer.toLowerCase().trim())) {
-        return feedback.correct;
-      }
-      return feedback.incorrect;
+  private isCorrect(question: Question, answer: string): boolean {
+    switch (question.type) {
+      case QuestionType.MultipleChoice:
+        return question.answer === answer;
+      case QuestionType.Writing:
+        return question.answer
+          .toLowerCase()
+          .trim()
+          .includes(answer.toLowerCase().trim());
+      default:
+        return false;
+    }
+  }
+
+  checkAnswer(
+    questionId: number,
+    answer: string,
+    messageSender: string,
+  ): { message: string; media: string } {
+    const question = this.findById(questionId);
+    const correctAnswer = question.answer;
+    const feedback = this.getFeedback(correctAnswer);
+
+    const isCorrect = this.isCorrect(question, answer);
+    const streakMessage = this.userService.incrementCorrectAnswerStreak(
+      messageSender,
+      isCorrect,
+    );
+
+    if (streakMessage)
+      feedback.correct.message = `${feedback.correct.message} \n ${streakMessage}`;
+
+    if (isCorrect) return feedback.correct;
+
+    return feedback.incorrect;
+  }
+
+  getNext(messageSender: string): Question | string {
+    const { isReviewMode, incorrectQuestions, currentQuestionId } =
+      this.userService.getSession(messageSender)!;
+
+    if (isReviewMode && incorrectQuestions.length === 0) {
+      this.userService.setReviewMode(messageSender, false);
+      return DefaultMessages['lesson.end'];
     }
 
-    return feedback[answer === correctAnswer ? 'correct' : 'incorrect'];
+    if (
+      !isReviewMode &&
+      currentQuestionId > this.list.length &&
+      incorrectQuestions.length > 0
+    ) {
+      this.userService.setReviewMode(messageSender, true);
+      this.userService.setCurrrentQuestionId(
+        messageSender,
+        incorrectQuestions[0],
+      );
+    }
+
+    const nextQuestion = this.findById(currentQuestionId);
+
+    if (nextQuestion.audio && !nextQuestion.text) {
+      nextQuestion.text = DefaultMessages['question.audio.text'];
+    }
+
+    if (isReviewMode) {
+      nextQuestion.text = `[Gusubiramo] ${nextQuestion.text}`;
+    }
+
+    return nextQuestion;
   }
 }

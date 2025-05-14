@@ -1,8 +1,13 @@
+export enum QuestionType {
+  MultipleChoice = 'interactive',
+  Writing = 'text',
+}
+
 export interface Question {
   _id: number;
-  question_number: number;
-  question: string;
-  options?: string[];
-  type?: string;
+  text: string;
   answer: string;
+  options?: string[];
+  type: QuestionType;
+  audio?: string;
 }
