@@ -1,8 +1,7 @@
 {
   "welcome": "*Muraho!* 👋\nIkaze kuri *Learn English*! Hano uziga Icyongereza mu buryo bworoshye kandi bushimishije.",
-  "question.audio.text": "Ni iki wumva?",
   "status.answer.correct": "Byiza cyane! 🎉 Igisubizo cyawe ni cyo!",
   "status.answer.incorrect": "Yiii! 😞 Igisubizo cyawe Ntabwo ari cyo.\n\nIgisubizo ni: ",
   "lesson.end": "Isome ryarangiye! 🎉",
-  "status.answer.streak": "Ubu umaze gusubiza neza inshuro 5 zikurikirana. 🎉"
+  "status.answer.streak": "Ubu umaze gusubiza neza inshuro {{streakCount}} zikurikirana. 🎉"
 }

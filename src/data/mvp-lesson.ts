@@ -3,7 +3,7 @@ import {
   QuestionType,
 } from 'src/questions/interfaces/question.interface';
 
-const mvpLessonQuestions: Question[] = [
+const list: Question[] = [
   {
     _id: 1,
     text: 'Hitamo ubusobanuro bwa “Icyayi”',
@@ -46,22 +46,25 @@ const mvpLessonQuestions: Question[] = [
   },
   {
     _id: 7,
-    text: 'https://leow.netlify.app/Pronunciation_hello_.mp3',
+    text: 'Ni iki wumva?',
     type: QuestionType.MultipleChoice,
+    audio: 'https://leow.netlify.app/Pronunciation_hello_.mp3',
     options: ['Hello', 'Below', 'Yellow'],
     answer: 'Hello',
   },
   {
     _id: 8,
-    text: 'https://leow.netlify.app/Pronunciation_water.mp3',
+    text: 'Ni iki wumva?',
     type: QuestionType.MultipleChoice,
+    audio: 'https://leow.netlify.app/Pronunciation_water.mp3',
     options: ['Water', 'Butter', 'Quarter'],
     answer: 'Water',
   },
   {
     _id: 9,
-    text: 'https://leow.netlify.app/Pronunciation%20_yes_.mp3',
+    text: 'Ni iki wumva?',
     type: QuestionType.MultipleChoice,
+    audio: 'https://leow.netlify.app/Pronunciation%20_yes_.mp3',
     options: ['yes', 'guess', 'rest'],
     answer: 'yes',
   },
@@ -107,4 +110,4 @@ const mvpLessonQuestions: Question[] = [
   },
 ];
 
-export default mvpLessonQuestions;
+export default list;

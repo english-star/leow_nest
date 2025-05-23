@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Question, QuestionType } from './interfaces/question.interface';
-import questions from '../data/mvpLessonQuestions';
+import questions from '../data/mvp-lesson';
 import DefaultMessages from '../data/default-messages.json';
 import { UserService } from '../user/user.service';
 import { MessageService } from '../message/message.service';
@@ -45,7 +45,7 @@ export class QuestionsService {
     switch (question.type) {
       case QuestionType.MultipleChoice:
         return question.answer === answer;
-      case QuestionType.Writing || QuestionType.Speaking:
+      case QuestionType.Writing:
         return question.answer
           .toLowerCase()
           .trim()
@@ -55,11 +55,11 @@ export class QuestionsService {
     }
   }
 
-  async checkAnswer(
+  checkAnswer(
     questionId: number,
     answer: string,
     messageSender: string,
-  ): Promise<{ message: string; media: string; nextQuestion?: Question }> {
+  ): { message: string; media: string } {
     const question = this.findById(questionId);
     const correctAnswer = question.answer;
     const feedback = this.getFeedback(correctAnswer);
@@ -70,59 +70,24 @@ export class QuestionsService {
       isCorrect,
     );
 
-    this.userService.incrementCurrentQuestion(messageSender);
-    const nextQuestion = this.getNext(messageSender);
+    if (streakMessage)
+      feedback.correct.message = `${feedback.correct.message} \n ${streakMessage}`;
 
-    if (streakMessage) {
-      await this.messageService.sendFeedback(
-        messageSender,
-        isCorrect ? feedback.correct : feedback.incorrect,
-      );
-      await this.messageService.sendText(messageSender, streakMessage);
-      return {
-        message: '',
-        media: '',
-        nextQuestion:
-          typeof nextQuestion === 'string' ? undefined : nextQuestion,
-      };
-    }
+    if (isCorrect) return feedback.correct;
 
-    return {
-      ...(isCorrect ? feedback.correct : feedback.incorrect),
-      nextQuestion: typeof nextQuestion === 'string' ? undefined : nextQuestion,
-    };
+    return feedback.incorrect;
   }
 
   getNext(messageSender: string): Question | string {
-    const session = this.userService.getSession(messageSender);
-    if (!session) {
-      return DefaultMessages['lesson.end'];
-    }
+    const { currentQuestionId, completed, isReviewMode } =
+      this.userService.getSession(messageSender)!;
 
-    const isReviewMode = this.userService.isInReviewMode(messageSender);
+    if (completed) return DefaultMessages['lesson.end'];
 
-    if (isReviewMode && session.incorrectQuestions.length === 0) {
-      session.isReviewMode = false;
-      return DefaultMessages['lesson.end'];
-    }
-
-    if (
-      !isReviewMode &&
-      session.currentQuestionId > this.list.length &&
-      session.incorrectQuestions.length > 0
-    ) {
-      session.isReviewMode = true;
-      session.currentQuestionId = session.incorrectQuestions[0];
-    }
-
-    const nextQuestion = this.findById(session.currentQuestionId);
-
-    if (nextQuestion.audio && !nextQuestion.text) {
-      nextQuestion.text = DefaultMessages['question.audio.text'];
-    }
+    const nextQuestion = this.findById(currentQuestionId);
 
     if (isReviewMode) {
-      nextQuestion.text = `[Review Mode] ${nextQuestion.text}`;
+      nextQuestion.text = `[Gusubiramo] ${nextQuestion.text}`;
     }
 
     return nextQuestion;

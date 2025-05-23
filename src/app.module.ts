@@ -6,7 +6,6 @@ import { MessageModule } from './message/message.module';
 import { QuestionsModule } from './questions/questions.module';
 import { UserModule } from './user/user.module';
 import { AudioService } from './audio/audio.service';
-import { AudioController } from './audio/audio.controller';
 import { AudioModule } from './audio/audio.module';
 
 @Module({
@@ -17,7 +16,7 @@ import { AudioModule } from './audio/audio.module';
     UserModule,
     AudioModule,
   ],
-  controllers: [AppController, AudioController],
+  controllers: [AppController],
   providers: [AppService, AudioService],
 })
 export class AppModule {}

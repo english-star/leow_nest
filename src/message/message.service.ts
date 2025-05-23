@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { catchError, lastValueFrom, map } from 'rxjs';
@@ -11,13 +12,21 @@ import {
   WHATSAPP_CLOUD_API_MESSAGES_URL,
 } from './constants/cloud-api';
 import { UserService } from '../user/user.service';
-import { Question } from '../questions/interfaces/question.interface';
+import {
+  Question,
+  QuestionType,
+} from '../questions/interfaces/question.interface';
 import DefaultMessages from '../data/default-messages.json';
 import { ApiResponse } from './message.interface';
+import { AudioService } from 'src/audio/audio.service';
+import { download, getUrl } from 'src/helpers/media.helper';
 
 @Injectable()
 export class MessageService {
-  constructor(private readonly userService: UserService) {}
+  constructor(
+    private readonly userService: UserService,
+    private readonly audioService: AudioService,
+  ) {}
 
   private readonly httpService = new HttpService();
   private readonly logger = new Logger(MessageService.name);
@@ -124,36 +133,67 @@ export class MessageService {
     this.userService.incrementCurrentQuestion(recipient);
   }
 
-  async parseText(
-    messageSender: string,
+  async handleInitial(
+    sender: string,
     message: InteractiveMessageResponse,
-  ): Promise<void> {
+  ): Promise<string> {
     const text = message.text?.body;
     if (!text) {
       this.logger.warn('Received text message without body');
-      return;
+      return '';
     }
 
-    const userSession = this.userService.getSession(messageSender);
+    const userSession = this.userService.getSession(sender);
 
     if (userSession?.currentQuestionId === 1) {
-      await this.sendText(messageSender, DefaultMessages['welcome']);
+      return this.sendText(sender, DefaultMessages['welcome']);
+    }
+
+    return '';
+  }
+
+  async getUserResponse(
+    sender: string,
+    message: InteractiveMessageResponse,
+  ): Promise<string | null> {
+    switch (message.type) {
+      case 'text': {
+        const initialMessage = await this.handleInitial(sender, message);
+        return initialMessage ? null : (message.text?.body ?? '');
+      }
+
+      case 'interactive': {
+        return message.interactive?.button_reply?.title as string;
+      }
+
+      case 'audio': {
+        const mediaId = message.audio?.id as string;
+        const audioUrl = await getUrl(mediaId, this.httpService);
+        const audioBuffer = await download(audioUrl, this.httpService);
+        return await this.audioService.transcribeBuffer(audioBuffer);
+      }
+
+      default:
+        this.logger.warn(`Unhandled message type: ${message.type}`);
+        return null;
     }
   }
 
-  async getMediaUrl(mediaId: string): Promise<string> {
-    const url = `https://graph.facebook.com/v16.0/${mediaId}?fields=link&access_token=${WHATSAPP_CLOUD_API_ACCESS_TOKEN}`;
+  async sendQuestion(
+    sender: string,
+    question: Question | string,
+  ): Promise<string> {
+    if (typeof question === 'string') {
+      return this.sendText(sender, question);
+    }
 
-    try {
-      const response = await lastValueFrom(
-        this.httpService
-          .get<{ link: string }>(url)
-          .pipe(map((res) => res.data)),
-      );
-      return response.link;
-    } catch (error) {
-      this.logger.error('Error fetching media URL:', error);
-      throw new BadRequestException('Error fetching media URL');
+    switch (question.type) {
+      case QuestionType.MultipleChoice:
+        return this.sendWithOptions(sender, question);
+      case QuestionType.Writing:
+        return this.sendText(sender, question.text);
+      default:
+        return Promise.resolve('Unhandled type');
     }
   }
 }
